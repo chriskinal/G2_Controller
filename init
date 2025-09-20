@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# G2_Controller Project Initialization Script
+# This script sets up the development environment for the ESP32-S3 project
+
+echo "=== G2_Controller Project Initialization ==="
+echo
+
+# Set PlatformIO path
+PIO="$HOME/.platformio/penv/bin/pio"
+
+# Install/update PlatformIO dependencies
+echo
+echo "📦 Installing PlatformIO dependencies..."
+"$PIO" pkg install
+
+# Update PlatformIO platforms and frameworks
+echo
+echo "🔄 Updating PlatformIO platforms..."
+"$PIO" platform update
+
+# Clean build directory
+echo
+echo "🧹 Cleaning build directory..."
+"$PIO" run --target clean
+
+# Create any missing directories
+echo
+echo "📁 Ensuring project structure..."
+mkdir -p src include lib test/unit
+
+# Check if version.h exists, if not create a template
+if [ ! -f "include/version.h" ]; then
+    echo "📝 Creating version.h template..."
+    cat > include/version.h << 'EOF'
+#ifndef VERSION_H
+#define VERSION_H
+
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 1
+#define VERSION_PATCH 0
+
+#define VERSION_STRING "0.1.0"
+
+#endif // VERSION_H
+EOF
+fi
+
+# Initialize git repository if not already initialized
+if [ ! -d ".git" ]; then
+    echo
+    echo "🔧 Initializing git repository..."
+    git init
+    git add .
+    git commit -m "Initial commit"
+fi
+
+# Display project info
+echo
+echo "📋 Project Configuration:"
+echo "  Platform: ESP32-S3"
+echo "  Board: esp32-s3-devkitc-1"
+echo "  Framework: Arduino"
+echo
+
+# Test compilation
+echo "🔨 Testing compilation..."
+if "$PIO" run; then
+    echo "✅ Compilation successful!"
+else
+    echo "❌ Compilation failed. Please check error messages above."
+    exit 1
+fi
+
+echo
+echo "✨ Initialization complete!"
+echo
+echo "Available commands:"
+echo "  $PIO run           - Build the project"
+echo "  $PIO run -t upload - Upload to device"
+echo "  $PIO device monitor - Open serial monitor"
+echo "  $PIO test          - Run unit tests"
+echo
