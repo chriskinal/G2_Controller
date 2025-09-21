@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G20 VFD Controller</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .status-display {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            color: #666;
+        }
+
+        .status-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .frequency-display {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            color: #007bff;
+            margin: 20px 0;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-buttons button {
+            flex: 1;
+            padding: 15px;
+            font-size: 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-up {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-up:hover {
+            background: #218838;
+        }
+
+        .btn-down {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-down:hover {
+            background: #e0a800;
+        }
+
+        .btn-start {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #0056b3;
+        }
+
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #c82333;
+        }
+
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .step-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-control label {
+            color: #666;
+        }
+
+        .step-control select {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .fault {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .info-label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .info-unit {
+            font-size: 16px;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .footer-links {
+            margin-top: 30px;
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .footer-links a {
+            color: #007bff;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>G20 VFD Controller</h1>
+
+        <div id="connectionStatus" class="connection-status disconnected">
+            Connecting...
+        </div>
+
+        <div class="status-display">
+            <div class="frequency-display" id="frequency">0.00 Hz</div>
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="runStatus">Stopped</span>
+            </div>
+        </div>
+
+        <div class="control-buttons">
+            <button id="btnDown" class="btn-down" onclick="adjustFrequency(-1)">▼ DOWN</button>
+            <button id="btnUp" class="btn-up" onclick="adjustFrequency(1)">▲ UP</button>
+        </div>
+
+        <div class="control-buttons">
+            <button id="btnStart" class="btn-start" onclick="startVFD()">START</button>
+            <button id="btnStop" class="btn-stop" onclick="stopVFD()">STOP</button>
+        </div>
+
+        <div class="settings-row">
+            <div class="step-control">
+                <label for="stepSize">Step Size:</label>
+                <select id="stepSize" onchange="updateStepSize()">
+                    <option value="0.1">0.1 Hz</option>
+                    <option value="0.5">0.5 Hz</option>
+                    <option value="1" selected>1.0 Hz</option>
+                    <option value="5">5.0 Hz</option>
+                    <option value="10">10.0 Hz</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="info-label">Current</div>
+                <div class="info-value"><span id="current">0.00</span> <span class="info-unit">A</span></div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Voltage</div>
+                <div class="info-value"><span id="voltage">0.0</span> <span class="info-unit">V</span></div>
+            </div>
+        </div>
+
+        <div class="footer-links">
+            <a href="/settings">Settings</a>
+            <a href="/wifi_config.html">WiFi Config</a>
+            <a href="/update">Firmware Update</a>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let reconnectTimer = null;
+        let currentFrequency = 0;
+        let stepSize = 1.0;
+
+        function connectWebSocket() {
+            const wsUrl = `ws://${window.location.host}:81/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                document.getElementById('connectionStatus').className = 'connection-status connected';
+                document.getElementById('connectionStatus').textContent = 'Connected';
+
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateDisplay(data);
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                document.getElementById('connectionStatus').className = 'connection-status disconnected';
+                document.getElementById('connectionStatus').textContent = 'Disconnected - Reconnecting...';
+
+                // Attempt to reconnect after 2 seconds
+                reconnectTimer = setTimeout(connectWebSocket, 2000);
+            };
+        }
+
+        function updateDisplay(data) {
+            if (data.frequency !== undefined) {
+                currentFrequency = data.frequency;
+                document.getElementById('frequency').textContent = data.frequency.toFixed(2) + ' Hz';
+            }
+
+            if (data.running !== undefined) {
+                document.getElementById('runStatus').textContent = data.running ? 'Running' : 'Stopped';
+                updateButtonStates(data.running);
+            }
+
+            if (data.current !== undefined) {
+                document.getElementById('current').textContent = data.current.toFixed(2);
+            }
+
+            if (data.voltage !== undefined) {
+                document.getElementById('voltage').textContent = data.voltage.toFixed(1);
+            }
+
+            if (data.fault !== undefined && data.fault) {
+                document.getElementById('connectionStatus').className = 'connection-status fault';
+                document.getElementById('connectionStatus').textContent = 'VFD Fault';
+            }
+        }
+
+        function updateButtonStates(running) {
+            document.getElementById('btnStart').disabled = running;
+            document.getElementById('btnStop').disabled = !running;
+        }
+
+        function adjustFrequency(direction) {
+            const newFreq = currentFrequency + (direction * stepSize);
+            setFrequency(newFreq);
+        }
+
+        function setFrequency(freq) {
+            fetch('/api/vfd/frequency', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ frequency: freq })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Failed to set frequency:', data.error);
+                }
+            })
+            .catch(err => console.error('Error setting frequency:', err));
+        }
+
+        function startVFD() {
+            fetch('/api/vfd/start', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Failed to start VFD:', data.error);
+                }
+            })
+            .catch(err => console.error('Error starting VFD:', err));
+        }
+
+        function stopVFD() {
+            fetch('/api/vfd/stop', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Failed to stop VFD:', data.error);
+                }
+            })
+            .catch(err => console.error('Error stopping VFD:', err));
+        }
+
+        function updateStepSize() {
+            stepSize = parseFloat(document.getElementById('stepSize').value);
+        }
+
+        // Connect to WebSocket on page load
+        window.addEventListener('load', function() {
+            connectWebSocket();
+            updateStepSize();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html>

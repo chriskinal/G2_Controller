@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G20 Controller - WiFi Configuration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .scan-results {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .network-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+
+        .network-item:hover {
+            background: #f8f9fa;
+        }
+
+        .network-item:last-child {
+            border-bottom: none;
+        }
+
+        .network-ssid {
+            font-weight: 500;
+        }
+
+        .network-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .current-config {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .current-config h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #495057;
+        }
+
+        .config-info {
+            font-size: 14px;
+            color: #6c757d;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>G20 Controller</h1>
+        <div class="subtitle">WiFi Configuration</div>
+
+        <div id="currentConfig" class="current-config" style="display: none;">
+            <h3>Current Configuration</h3>
+            <div class="config-info">
+                <div>SSID: <strong id="currentSSID">None</strong></div>
+                <div>Status: <strong id="currentStatus">Not Connected</strong></div>
+                <div>IP Address: <strong id="currentIP">-</strong></div>
+            </div>
+        </div>
+
+        <form id="wifiForm">
+            <div class="form-group">
+                <label for="ssid">Network Name (SSID)</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="ssid" name="ssid" required style="flex: 1;">
+                    <button type="button" id="scanBtn" onclick="scanNetworks()" style="width: auto;">Scan</button>
+                </div>
+                <div id="scanResults" class="scan-results"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password">
+            </div>
+
+            <button type="submit">Connect</button>
+        </form>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        // Check current configuration on load
+        window.addEventListener('load', checkCurrentConfig);
+
+        function checkCurrentConfig() {
+            fetch('/api/wifi/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.configured) {
+                        document.getElementById('currentConfig').style.display = 'block';
+                        document.getElementById('currentSSID').textContent = data.ssid || 'None';
+                        document.getElementById('currentStatus').textContent = data.connected ? 'Connected' : 'Not Connected';
+                        document.getElementById('currentIP').textContent = data.ip || '-';
+                    }
+                })
+                .catch(err => console.error('Failed to get WiFi status:', err));
+        }
+
+        function scanNetworks() {
+            const scanBtn = document.getElementById('scanBtn');
+            const scanResults = document.getElementById('scanResults');
+            const status = document.getElementById('status');
+
+            scanBtn.disabled = true;
+            scanBtn.textContent = 'Scanning...';
+
+            showStatus('Scanning for networks...', 'info');
+
+            fetch('/api/wifi/scan')
+                .then(response => response.json())
+                .then(data => {
+                    scanResults.innerHTML = '';
+                    scanResults.style.display = 'block';
+
+                    if (data.networks && data.networks.length > 0) {
+                        data.networks.forEach(network => {
+                            const item = document.createElement('div');
+                            item.className = 'network-item';
+                            item.innerHTML = `
+                                <div class="network-ssid">${network.ssid}</div>
+                                <div class="network-info">
+                                    Signal: ${network.rssi} dBm |
+                                    ${network.encryption ? 'Secured' : 'Open'}
+                                </div>
+                            `;
+                            item.onclick = () => selectNetwork(network.ssid);
+                            scanResults.appendChild(item);
+                        });
+                        hideStatus();
+                    } else {
+                        showStatus('No networks found', 'error');
+                        scanResults.style.display = 'none';
+                    }
+                })
+                .catch(err => {
+                    showStatus('Scan failed: ' + err.message, 'error');
+                    scanResults.style.display = 'none';
+                })
+                .finally(() => {
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = 'Scan';
+                });
+        }
+
+        function selectNetwork(ssid) {
+            document.getElementById('ssid').value = ssid;
+            document.getElementById('scanResults').style.display = 'none';
+            document.getElementById('password').focus();
+        }
+
+        document.getElementById('wifiForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const ssid = document.getElementById('ssid').value;
+            const password = document.getElementById('password').value;
+            const submitBtn = document.querySelector('button[type="submit"]');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Connecting...';
+
+            showStatus('Connecting to ' + ssid + '...', 'info');
+
+            fetch('/api/wifi/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ssid, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus(data.message || 'Connecting...', 'success');
+
+                    if (data.hostname) {
+                        setTimeout(() => {
+                            showStatus('Device will be available at: http://' + data.hostname, 'info');
+                            setTimeout(() => {
+                                showStatus('Note: You may need to reconnect to your WiFi network', 'info');
+                            }, 3000);
+                        }, 2000);
+                    }
+                } else {
+                    showStatus('Connection failed: ' + (data.error || 'Unknown error'), 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Connect';
+                }
+            })
+            .catch(err => {
+                showStatus('Error: ' + err.message, 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Connect';
+            });
+        });
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+
+        function hideStatus() {
+            const status = document.getElementById('status');
+            status.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
