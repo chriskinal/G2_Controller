@@ -27,17 +27,25 @@
 
         h1 {
             color: #333;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             text-align: center;
-            font-size: 28px;
+            font-size: 24px;
         }
 
         .status-display {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        .speed-card {
             background: #f8f9fa;
             border: 2px solid #dee2e6;
             border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
+            padding: 15px;
+            flex: 1;
+            max-width: 200px;
         }
 
         .status-item {
@@ -61,17 +69,28 @@
         }
 
         .frequency-display {
-            font-size: 48px;
+            font-size: 36px;
             font-weight: bold;
             text-align: center;
             color: #007bff;
-            margin: 20px 0;
+            margin: 10px 0;
+            line-height: 1;
+        }
+
+        .freq-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            text-align: center;
         }
 
         .control-buttons {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin: 8px 0;
+            justify-content: center;
         }
 
         .control-buttons button {
@@ -146,9 +165,10 @@
 
         .connection-status {
             text-align: center;
-            padding: 10px;
+            padding: 8px;
             border-radius: 5px;
-            margin-bottom: 20px;
+            margin: 10px 0;
+            font-size: 14px;
         }
 
         .connected {
@@ -223,18 +243,6 @@
     <div class="container">
         <h1>G20 VFD Controller</h1>
 
-        <div id="connectionStatus" class="connection-status disconnected">
-            Connecting...
-        </div>
-
-        <div class="status-display">
-            <div class="frequency-display" id="frequency">0.00 Hz</div>
-            <div class="status-item">
-                <span class="status-label">Status:</span>
-                <span class="status-value" id="runStatus">Stopped</span>
-            </div>
-        </div>
-
         <div class="control-buttons">
             <button id="btnDown" class="btn-down" onclick="adjustFrequency(-1)">▼ DOWN</button>
             <button id="btnUp" class="btn-up" onclick="adjustFrequency(1)">▲ UP</button>
@@ -247,18 +255,46 @@
 
         <div class="settings-row">
             <div class="step-control">
-                <label for="stepSize">Step Size:</label>
+                <label for="stepSize">Step:</label>
                 <select id="stepSize" onchange="updateStepSize()">
-                    <option value="0.1">0.1 Hz</option>
-                    <option value="0.5">0.5 Hz</option>
-                    <option value="1" selected>1.0 Hz</option>
-                    <option value="5">5.0 Hz</option>
-                    <option value="10">10.0 Hz</option>
+                    <option value="0.5">30 RPM</option>
+                    <option value="1">60 RPM</option>
+                    <option value="2">120 RPM</option>
+                    <option value="5" selected>300 RPM</option>
+                    <option value="10">600 RPM</option>
                 </select>
             </div>
         </div>
 
+        <div class="status-display">
+            <div class="speed-card">
+                <div class="freq-label">Actual Speed</div>
+                <div class="frequency-display" id="frequency">0 RPM</div>
+            </div>
+            <div class="speed-card">
+                <div class="freq-label">Commanded Speed</div>
+                <div class="frequency-display" id="targetFrequency" style="font-size: 36px; color: #007bff;">0 RPM</div>
+            </div>
+        </div>
+
+        <div id="connectionStatus" class="connection-status disconnected">
+            Connecting...
+        </div>
+
+        <div class="status-row" style="margin: 10px 0;">
+            <span class="status-label">Status:</span>
+            <span class="status-value" id="runStatus">Stopped</span>
+        </div>
+
         <div class="info-grid">
+            <div class="info-card">
+                <div class="info-label">Frequency</div>
+                <div class="info-value"><span id="actualHz">0.00</span> <span class="info-unit">Hz</span></div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Target</div>
+                <div class="info-value"><span id="targetHz">0.00</span> <span class="info-unit">Hz</span></div>
+            </div>
             <div class="info-card">
                 <div class="info-label">Current</div>
                 <div class="info-value"><span id="current">0.00</span> <span class="info-unit">A</span></div>
@@ -280,10 +316,15 @@
         let ws = null;
         let reconnectTimer = null;
         let currentFrequency = 0;
+        let targetFrequency = 0;
         let stepSize = 1.0;
+        let frequencyInitialized = false;
 
         function connectWebSocket() {
-            const wsUrl = `ws://${window.location.host}:81/ws`;
+            // Use the same host as the web page (IP or hostname)
+            const wsHost = window.location.hostname;
+            const wsUrl = `ws://${wsHost}:81`;
+            console.log('Connecting to WebSocket:', wsUrl);
 
             ws = new WebSocket(wsUrl);
 
@@ -296,6 +337,20 @@
                     clearTimeout(reconnectTimer);
                     reconnectTimer = null;
                 }
+
+                // Request current frequency on connect
+                fetch('/api/vfd/frequency')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.frequency !== undefined) {
+                            currentFrequency = data.frequency;
+                            targetFrequency = data.target || data.frequency;
+                            frequencyInitialized = true;
+                            console.log('Initial frequency:', currentFrequency, 'target:', targetFrequency);
+                            updateDisplay({frequency: currentFrequency, target: targetFrequency});
+                        }
+                    })
+                    .catch(err => console.error('Error fetching initial frequency:', err));
             };
 
             ws.onmessage = function(event) {
@@ -320,7 +375,20 @@
         function updateDisplay(data) {
             if (data.frequency !== undefined) {
                 currentFrequency = data.frequency;
-                document.getElementById('frequency').textContent = data.frequency.toFixed(2) + ' Hz';
+                frequencyInitialized = true;
+                // Convert Hz to RPM (60 Hz = 3600 RPM, so multiply by 60)
+                const actualRPM = Math.round(data.frequency * 60);
+                document.getElementById('frequency').textContent = actualRPM + ' RPM';
+                document.getElementById('actualHz').textContent = data.frequency.toFixed(2);
+            }
+
+            // Update target if provided
+            if (data.target !== undefined) {
+                targetFrequency = data.target;
+                // Convert Hz to RPM
+                const targetRPM = Math.round(data.target * 60);
+                document.getElementById('targetFrequency').textContent = targetRPM + ' RPM';
+                document.getElementById('targetHz').textContent = data.target.toFixed(2);
             }
 
             if (data.running !== undefined) {
@@ -348,20 +416,33 @@
         }
 
         function adjustFrequency(direction) {
-            const newFreq = currentFrequency + (direction * stepSize);
+            if (!frequencyInitialized) {
+                console.error('Frequency not initialized yet');
+                alert('Please wait for connection to establish');
+                return;
+            }
+            // Use target frequency for adjustments, not actual frequency
+            const newFreq = Math.max(0, targetFrequency + (direction * stepSize));
+            console.log('Adjusting frequency:', targetFrequency, direction, stepSize, 'new:', newFreq);
+            targetFrequency = newFreq;  // Update target immediately
             setFrequency(newFreq);
         }
 
         function setFrequency(freq) {
+            const payload = JSON.stringify({ frequency: freq });
+            console.log('Sending frequency request:', payload);
+
             fetch('/api/vfd/frequency', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Content-Length': payload.length.toString()
                 },
-                body: JSON.stringify({ frequency: freq })
+                body: payload
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Frequency response:', data);
                 if (!data.success) {
                     console.error('Failed to set frequency:', data.error);
                 }

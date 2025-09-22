@@ -2,17 +2,12 @@
 #include "Config.h"
 #include "ModbusVFD.h"
 #include "WiFiManager.h"
+#include "WebInterface.h"
 
 // Global objects
 ModbusVFD vfd;
 WiFiManager wifiManager;
-
-// Test variables
-float testFrequency = 0.0;
-float frequencyStep = 10.0;  // Changed to 10Hz steps as requested
-bool testRunning = false;     // Track test state independently
-unsigned long lastUpdateTime = 0;
-unsigned long lastCommandTime = 0;
+WebInterface* webInterface = nullptr;
 
 void setup() {
     // Initialize debug serial
@@ -21,9 +16,9 @@ void setup() {
         ; // Wait for serial port to connect
     }
 
-    DEBUG_PRINTLN("\n=== G20 VFD Controller - Milestone 2 Test ===");
-    DEBUG_PRINTLN("WiFi Configuration & Modbus Communication");
-    DEBUG_PRINTLN("==========================================\n");
+    DEBUG_PRINTLN("\n=== G20 VFD Controller ===");
+    DEBUG_PRINTLN("Version: " FIRMWARE_VERSION);
+    DEBUG_PRINTLN("==========================\n");
 
     // Initialize WiFi Manager
     DEBUG_PRINTLN("Initializing WiFi Manager...");
@@ -43,7 +38,7 @@ void setup() {
     }
 
     // Initialize VFD communication
-    vfd.enableDebug(true);
+    vfd.enableDebug(false);  // Disable debug for cleaner operation
 
     DEBUG_PRINTLN("\nInitializing Modbus VFD...");
     if (vfd.begin()) {
@@ -65,92 +60,59 @@ void setup() {
     params.rampDownTime = 5.0;
     vfd.setParameters(params);
 
-    DEBUG_PRINTLN("\nTest sequence:");
-    DEBUG_PRINTLN("1. Read VFD status every 1 second");
-    DEBUG_PRINTLN("2. Every 5 seconds: Update VFD");
-    DEBUG_PRINTLN("3. Pattern: Start at 10Hz, increment by 10Hz to 60Hz, then stop");
-    DEBUG_PRINTLN("4. Monitor current, voltage, and frequency\n");
+    // Initialize Web Interface if WiFi is ready (either connected or AP mode)
+    if (wifiManager.isConnected() || wifiManager.isAPMode()) {
+        DEBUG_PRINTLN("\nInitializing Web Interface...");
+        webInterface = new WebInterface(vfd);
+        if (webInterface->begin()) {
+            DEBUG_PRINTLN("✓ Web Interface started!");
+            DEBUG_PRINTF("✓ WebSocket server on port 81\n");
+        } else {
+            DEBUG_PRINTLN("✗ Failed to start Web Interface!");
+            delete webInterface;
+            webInterface = nullptr;
+        }
+    }
 
-    DEBUG_PRINTLN("IMPORTANT: Make sure VFD is set to:");
-    DEBUG_PRINTLN("  - Remote/Serial control mode (not Local)");
-    DEBUG_PRINTLN("  - Parameter write enabled");
-    DEBUG_PRINTLN("  - Check P3.00 = 3 (RS485 control)");
+    DEBUG_PRINTLN("\nReady!");
+    if (wifiManager.isConnected() && webInterface) {
+        DEBUG_PRINTLN("Control interface available at:");
+        DEBUG_PRINTF("  http://%s\n", wifiManager.getIP().c_str());
+        DEBUG_PRINTF("  http://g20-controller.local\n");
+    }
 }
 
 void loop() {
-    unsigned long currentTime = millis();
-
     // Handle WiFi events
     wifiManager.handle();
 
-    // Update VFD status every second
-    if (currentTime - lastUpdateTime >= 1000) {
-        lastUpdateTime = currentTime;
-
-        if (vfd.updateStatus()) {
-            // Print status
-            DEBUG_PRINTLN("--- VFD Status Update ---");
-            DEBUG_PRINTF("Connected: %s\n", vfd.isConnected() ? "Yes" : "No");
-            DEBUG_PRINTF("Status: %s %s\n",
-                         vfd.isRunning() ? "RUNNING" : "STOPPED",
-                         vfd.isFaulted() ? "[FAULT]" : "");
-            DEBUG_PRINTF("Frequency: %.2f Hz\n", vfd.getFrequency());
-            DEBUG_PRINTF("Current: %.2f A\n", vfd.getCurrent());
-            DEBUG_PRINTF("Voltage: %.2f V\n", vfd.getVoltage());
-            DEBUG_PRINTF("Status Word: 0x%04X\n", vfd.getStatusWord());
-            DEBUG_PRINTLN("------------------------\n");
-        } else {
-            DEBUG_PRINTLN("✗ Failed to read VFD status!");
-        }
+    // Handle web interface if active
+    if (webInterface) {
+        webInterface->handle();
     }
 
-    // Send commands every 5 seconds
-    if (currentTime - lastCommandTime >= 5000) {
-        lastCommandTime = currentTime;
-
-        if (vfd.isConnected()) {
-            if (!testRunning) {
-                // Start VFD
-                DEBUG_PRINTLN(">>> Starting VFD...");
-                testFrequency = 10.0;  // Start at 10Hz
-
-                if (vfd.setFrequency(testFrequency)) {
-                    DEBUG_PRINTF("✓ Set frequency to %.2f Hz\n", testFrequency);
-                }
-
-                if (vfd.start()) {
-                    DEBUG_PRINTLN("✓ VFD start command sent");
-                    testRunning = true;
-                } else {
-                    DEBUG_PRINTLN("✗ Failed to start VFD");
-                }
+    // Check if we need to start web interface after WiFi is ready
+    if (!webInterface && (wifiManager.isConnected() || wifiManager.isAPMode())) {
+        DEBUG_PRINTLN("\nStarting Web Interface...");
+        webInterface = new WebInterface(vfd);
+        if (webInterface->begin()) {
+            DEBUG_PRINTLN("✓ Web Interface started!");
+            DEBUG_PRINTF("✓ WebSocket server on port 81\n");
+            if (wifiManager.isConnected()) {
+                DEBUG_PRINTLN("Control interface available at:");
+                DEBUG_PRINTF("  http://%s\n", wifiManager.getIP().c_str());
+                DEBUG_PRINTF("  http://g20-controller.local\n");
             } else {
-                // VFD is running - update frequency or stop
-                if (testFrequency < 60.0) {  // Changed to 60Hz as requested
-                    // Increment frequency
-                    testFrequency += frequencyStep;
-                    DEBUG_PRINTF(">>> Changing frequency to %.2f Hz...\n", testFrequency);
-
-                    if (vfd.setFrequency(testFrequency)) {
-                        DEBUG_PRINTLN("✓ Frequency updated");
-                    } else {
-                        DEBUG_PRINTLN("✗ Failed to update frequency");
-                    }
-                } else {
-                    // Stop VFD
-                    DEBUG_PRINTLN(">>> Stopping VFD...");
-                    if (vfd.stop()) {
-                        DEBUG_PRINTLN("✓ VFD stop command sent");
-                        testFrequency = 0.0;
-                        testRunning = false;
-                    } else {
-                        DEBUG_PRINTLN("✗ Failed to stop VFD");
-                    }
-                }
+                DEBUG_PRINTLN("Control interface available at:");
+                DEBUG_PRINTF("  http://%s (AP mode)\n", wifiManager.getIP().c_str());
             }
+        } else {
+            DEBUG_PRINTLN("✗ Failed to start Web Interface!");
+            delete webInterface;
+            webInterface = nullptr;
         }
     }
 
-    // Small delay to prevent overwhelming the serial output
-    delay(10);
+    // Small delay to prevent CPU hogging
+    delay(1);
 }

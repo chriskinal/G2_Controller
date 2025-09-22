@@ -307,16 +307,7 @@ void WiFiManager::onWiFiEvent(WiFiEvent_t event) {
                 DEBUG_PRINTLN("mDNS failed to start!");
             }
 
-            // Start web server if not already running
-            if (!instance->webServer) {
-                instance->webServer = new SimpleHTTPServer();
-                instance->setupWebRoutes();
-                if (instance->webServer->begin(80)) {
-                    DEBUG_PRINTLN("Web server started on port 80");
-                } else {
-                    DEBUG_PRINTLN("Failed to start web server!");
-                }
-            }
+            // Don't start web server here - WebInterface will handle it
 
             DEBUG_PRINTLN("=====================================");
             DEBUG_PRINTLN("Access the controller at:");

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #log {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 5px 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test Page</h1>
+
+    <div>
+        <label>WebSocket URL: </label>
+        <input type="text" id="wsUrl" size="50" value="">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <div>
+        <button onclick="sendPing()">Send Ping</button>
+        <button onclick="sendStatus()">Request Status</button>
+    </div>
+
+    <h3>Connection Log:</h3>
+    <div id="log"></div>
+
+    <script>
+        let ws = null;
+
+        // Initialize with current host
+        document.getElementById('wsUrl').value = `ws://${window.location.hostname}:81`;
+
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${msg}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            if (ws) {
+                log('Already connected');
+                return;
+            }
+
+            const url = document.getElementById('wsUrl').value;
+            log(`Connecting to ${url}...`);
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = function(event) {
+                    log('WebSocket connected successfully');
+                    log(`ReadyState: ${ws.readyState}`);
+                };
+
+                ws.onmessage = function(event) {
+                    log(`Received: ${event.data}`);
+                };
+
+                ws.onerror = function(error) {
+                    log(`Error: ${error.type || 'Connection failed'}`);
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onclose = function(event) {
+                    log(`Disconnected (code: ${event.code}, reason: ${event.reason})`);
+                    ws = null;
+                };
+            } catch (e) {
+                log(`Exception: ${e.message}`);
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                log('Closing connection...');
+                ws.close();
+            } else {
+                log('Not connected');
+            }
+        }
+
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const msg = JSON.stringify({cmd: 'getStatus'});
+                log(`Sending: ${msg}`);
+                ws.send(msg);
+            } else {
+                log('Not connected');
+            }
+        }
+
+        function sendStatus() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const msg = JSON.stringify({cmd: 'getStatus'});
+                log(`Sending: ${msg}`);
+                ws.send(msg);
+            } else {
+                log('Not connected');
+            }
+        }
+    </script>
+</body>
+</html>

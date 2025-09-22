@@ -7,7 +7,8 @@ ModbusVFD::ModbusVFD() :
     connected(false),
     debugEnabled(false),
     slaveId(MODBUS_SLAVE_ID),
-    lastCommandTime(0)
+    lastCommandTime(0),
+    lastSetFrequency(0.0)
 {
     instance = this;
 
@@ -69,7 +70,11 @@ bool ModbusVFD::setFrequency(float frequencyHz) {
                      frequencyHz, freqValue);
     }
 
-    return writeRegister(REG_FREQUENCY_WRITE, freqValue);
+    bool result = writeRegister(REG_FREQUENCY_WRITE, freqValue);
+    if (result) {
+        lastSetFrequency = frequencyHz;
+    }
+    return result;
 }
 
 bool ModbusVFD::start(bool reverse) {

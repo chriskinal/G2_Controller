@@ -43,6 +43,7 @@ public:
     // Read functions
     bool updateStatus();
     float getFrequency();
+    float getTargetFrequency() const { return lastSetFrequency; }
     float getCurrent();
     float getVoltage();
     uint16_t getStatusWord();
@@ -72,6 +73,7 @@ private:
     bool debugEnabled;
     uint8_t slaveId;
     uint32_t lastCommandTime;
+    float lastSetFrequency;
 
     // Helper functions
     void preTransmission();
